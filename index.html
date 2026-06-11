@@ -54,6 +54,9 @@
           <button class="secondary" id="copy" style="padding:4px 10px;font-size:12px">Copy</button>
         </span>
       </h2>
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:8px">
+        <input type="checkbox" id="dedupe" checked> Remove duplicate SKUs
+      </label>
       <textarea id="skus" readonly placeholder="SKUs appear here, one per line"></textarea>
     </div>
     <div class="panel">
@@ -86,7 +89,8 @@ $('#go').addEventListener('click', async () => {
   $('#tbl').querySelector('tbody').innerHTML = '';
   $('#skus').value = '';
 
-  const all = [];
+  lastResults = [];
+  const all = lastResults;
   try {
     for (let i = 0; i < urls.length; i += BATCH) {
       const chunk = urls.slice(i, i + BATCH);
@@ -100,8 +104,7 @@ $('#go').addEventListener('click', async () => {
       all.push(...data.results);
       render(all);
     }
-    const ok = all.filter(r => r.sku).length;
-    $('#stat').textContent = ok + ' / ' + all.length + ' SKUs found';
+    updateStat();
   } catch (err) {
     alert('Error: ' + err);
     $('#stat').textContent = '';
@@ -111,9 +114,23 @@ $('#go').addEventListener('click', async () => {
   }
 });
 
+let lastResults = [];
+
+function skuList(results) {
+  let skus = results.filter(r => r.sku).map(r => r.sku);
+  if ($('#dedupe').checked) skus = [...new Set(skus)];
+  return skus;
+}
+
+function updateStat() {
+  const found = lastResults.filter(r => r.sku).length;
+  const shown = skuList(lastResults).length;
+  const dupeNote = ($('#dedupe').checked && shown < found) ? ' (' + (found - shown) + ' duplicates removed)' : '';
+  $('#stat').textContent = found + ' / ' + lastResults.length + ' SKUs found' + dupeNote;
+}
+
 function render(results) {
-  const skus = results.filter(r => r.sku).map(r => r.sku);
-  $('#skus').value = skus.join('\n');
+  $('#skus').value = skuList(results).join('\n');
   const tb = $('#tbl').querySelector('tbody');
   tb.innerHTML = '';
   for (const r of results) {
@@ -133,6 +150,11 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+$('#dedupe').addEventListener('change', () => {
+  $('#skus').value = skuList(lastResults).join('\n');
+  updateStat();
+});
 
 $('#copy').addEventListener('click', () => {
   $('#skus').select();

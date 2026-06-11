@@ -170,6 +170,9 @@ PAGE = """<!doctype html>
   <div class="grid">
     <div class="panel">
       <h2>SKUs <button class="secondary" id="copy" style="float:right;padding:4px 10px;font-size:12px">Copy</button></h2>
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:8px">
+        <input type="checkbox" id="dedupe" checked> Remove duplicate SKUs
+      </label>
       <textarea id="skus" readonly placeholder="SKUs appear here, one per line"></textarea>
     </div>
     <div class="panel">
@@ -205,7 +208,8 @@ $('#go').addEventListener('click', async () => {
       body: JSON.stringify({urls})
     });
     const data = await res.json();
-    render(data.results);
+    lastResults = data.results;
+    render(lastResults);
   } catch (err) {
     alert('Error: ' + err);
   } finally {
@@ -214,11 +218,20 @@ $('#go').addEventListener('click', async () => {
   }
 });
 
+let lastResults = [];
+
+function skuList(results) {
+  let skus = results.filter(r => r.sku).map(r => r.sku);
+  if ($('#dedupe').checked) skus = [...new Set(skus)];
+  return skus;
+}
+
 function render(results) {
-  const skus = results.filter(r => r.sku).map(r => r.sku);
-  $('#skus').value = skus.join('\\n');
-  const ok = results.filter(r => r.sku).length;
-  $('#stat').textContent = ok + ' / ' + results.length + ' SKUs found';
+  $('#skus').value = skuList(results).join('\\n');
+  const found = results.filter(r => r.sku).length;
+  const shown = skuList(results).length;
+  const dupeNote = ($('#dedupe').checked && shown < found) ? ' (' + (found - shown) + ' duplicates removed)' : '';
+  $('#stat').textContent = found + ' / ' + results.length + ' SKUs found' + dupeNote;
   const tb = $('#tbl').querySelector('tbody');
   tb.innerHTML = '';
   for (const r of results) {
@@ -233,6 +246,8 @@ function render(results) {
     tb.appendChild(tr);
   }
 }
+
+$('#dedupe').addEventListener('change', () => render(lastResults));
 
 $('#copy').addEventListener('click', () => {
   $('#skus').select();

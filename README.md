@@ -62,6 +62,10 @@ built-in HTTP server, so `requests` is the only dependency.
 3. The left panel lists the SKUs, one per line, with **Copy** and **Download** buttons.
    The right panel shows a per-URL detail table with the image found and any problems flagged.
 
+**Remove duplicate SKUs** (on by default) dedupes the SKU list, keeping the first
+occurrence of each, so variant or locale URLs that resolve to the same SKU only appear
+once. Untick it to keep one line per URL. The detail table always shows every URL.
+
 ## How the SKU is found
 
 For each page, the app looks for the principal product image in this order:
