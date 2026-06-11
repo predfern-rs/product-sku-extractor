@@ -1,6 +1,6 @@
 # Product SKU Extractor
 
-A tiny local web app for pulling product SKUs out of Ridestore product pages in bulk.
+A small web app for pulling product SKUs out of Ridestore product pages in bulk.
 
 Paste a list of product URLs, and the app fetches each page, finds the principal
 product image, and derives the SKU from the image filename (the part before the
@@ -13,32 +13,54 @@ Image: https://www.ridestore.com/images/H3790_01_unaI73y.jpg?w=750
 SKU:   H3790
 ```
 
-## Requirements
+There are two ways to run it: deployed on **Cloudflare Pages** (no server to run),
+or **locally with Python**.
 
-- Python 3.9+
-- [`requests`](https://pypi.org/project/requests/)
+## Deploy on Cloudflare Pages
+
+The repo is already Pages-ready: a static [`index.html`](index.html) for the UI and a
+Pages Function at [`functions/extract.js`](functions/extract.js) that does the
+page-fetching and SKU parsing on the Workers runtime.
+
+In the Cloudflare Pages setup screen:
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | **None** |
+| Build command | *(leave empty)* |
+| Build output directory | `/` |
+
+Connect this GitHub repo and deploy. That's it.
+
+> **Note:** by default the deployed URL is public, so anyone with the link could use it
+> to fetch pages through your Worker. For internal use, put it behind
+> [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/)
+> (one rule, restrict to your email/org).
+
+The UI sends URLs to the function in batches of 15 so each invocation stays under
+Cloudflare's free-plan limit of 50 subrequests per request.
+
+## Run locally with Python
+
+Requires Python 3.9+ and [`requests`](https://pypi.org/project/requests/).
 
 ```bash
 pip install -r requirements.txt
-```
-
-(The web UI itself uses Python's built-in HTTP server, so there's nothing else to install.)
-
-## Run
-
-```bash
 python app.py
 ```
 
-Then open **http://localhost:8765** in your browser.
+Then open **http://localhost:8765**. Press `Ctrl+C` to stop the server.
+
+The Python version ([`app.py`](app.py)) is self-contained — the UI is served by Python's
+built-in HTTP server, so `requests` is the only dependency.
+
+## How to use it
 
 1. Paste product URLs (one per line) into the box, or upload a `.txt`/`.csv` file
    (any URLs in it are pulled out automatically).
 2. Click **Extract SKUs**.
-3. The left panel lists the SKUs, one per line, with a Copy button. The right panel
-   shows a per-URL detail table with the image found and any problems flagged.
-
-Press `Ctrl+C` in the terminal to stop the server.
+3. The left panel lists the SKUs, one per line, with **Copy** and **Download** buttons.
+   The right panel shows a per-URL detail table with the image found and any problems flagged.
 
 ## How the SKU is found
 
@@ -56,5 +78,3 @@ As a safety net it also reads the `"sku"` field from structured data. If the
 image-derived SKU and the declared SKU disagree, that row is flagged so nothing
 silently slips through. Dead or blocked pages are flagged with their HTTP status
 (e.g. `HTTP 404`) rather than producing a missing line.
-
-Pages are fetched 8 at a time, so long lists process quickly.
