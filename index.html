@@ -3,172 +3,293 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ridestore SKU Extractor</title>
+<title>Ridestore SKU & Style Extractor</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1000px;
          margin: 0 auto; padding: 24px; line-height: 1.5; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  p.sub { color: #666; margin: 0 0 20px; font-size: 14px; }
+  p.sub { color: #666; margin: 0 0 16px; font-size: 14px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+  .tab { padding: 10px 16px; cursor: pointer; border: 0; background: none; font-size: 14px;
+         color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab.active { color: #111; font-weight: 600; border-bottom-color: #111; }
+  .view { display: none; }
+  .view.active { display: block; }
+  label.field { font-size: 13px; color: #444; display: block; margin: 0 0 4px; font-weight: 600; }
+  input[type=text] { width: 100%; padding: 9px 10px; border: 1px solid #ccc; border-radius: 8px;
+                     font-size: 13px; margin-bottom: 12px; }
   textarea { width: 100%; min-height: 200px; font-family: ui-monospace, Menlo, monospace;
              font-size: 13px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
   .row { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
-  button { background: #111; color: #fff; border: 0; padding: 10px 18px; border-radius: 8px;
-           font-size: 14px; cursor: pointer; }
-  button:hover { background: #333; }
-  button.secondary { background: #eee; color: #111; }
+  button.go { background: #111; color: #fff; border: 0; padding: 10px 18px; border-radius: 8px;
+              font-size: 14px; cursor: pointer; }
+  button.go:hover { background: #333; }
+  button.secondary { background: #eee; color: #111; border: 0; padding: 4px 10px; border-radius: 8px;
+                     font-size: 12px; cursor: pointer; }
   input[type=file] { font-size: 13px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
   .panel h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
-  #skus { width: 100%; min-height: 260px; font-family: ui-monospace, monospace; font-size: 14px;
-          padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+  .out { width: 100%; min-height: 260px; font-family: ui-monospace, monospace; font-size: 14px;
+         padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-  td.sku { font-family: ui-monospace, monospace; font-weight: 600; }
+  td.key { font-family: ui-monospace, monospace; font-weight: 600; white-space: nowrap; }
   .bad { color: #c0392b; }
   .ok { color: #1a7f37; }
+  .special { color: #b8860b; }
   .muted { color: #999; word-break: break-all; }
   .stat { font-size: 13px; color: #666; }
   .spinner { display:none; font-size:13px; color:#666; }
+  .dedupe { font-size:13px; color:#666; display:block; margin-bottom:8px; }
 </style>
 </head>
 <body>
-  <h1>Ridestore SKU Extractor</h1>
-  <p class="sub">Paste product URLs (one per line) or upload a .txt/.csv file. The app reads each
-  page, finds the principal product image, and pulls the SKU from the image filename.</p>
+  <h1>Ridestore SKU &amp; Style Extractor</h1>
 
-  <textarea id="urls" placeholder="https://www.ridestore.com/fr/montec-roast-moufles-unisex-sand&#10;https://www.ridestore.com/...&#10;..."></textarea>
-  <div class="row">
-    <button id="go">Extract SKUs</button>
-    <input type="file" id="file" accept=".txt,.csv">
-    <span class="spinner" id="spin">Working&hellip;</span>
-    <span class="stat" id="stat"></span>
+  <div class="tabs">
+    <button class="tab active" data-view="products">Product SKUs</button>
+    <button class="tab" data-view="outfits">Outfit Styles</button>
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h2>SKUs
-        <span style="float:right">
-          <button class="secondary" id="download" style="padding:4px 10px;font-size:12px">Download</button>
-          <button class="secondary" id="copy" style="padding:4px 10px;font-size:12px">Copy</button>
-        </span>
-      </h2>
-      <label style="font-size:13px;color:#666;display:block;margin-bottom:8px">
-        <input type="checkbox" id="dedupe" checked> Remove duplicate SKUs
-      </label>
-      <textarea id="skus" readonly placeholder="SKUs appear here, one per line"></textarea>
+  <!-- ============ TAB 1: PRODUCT SKUs ============ -->
+  <div class="view active" id="view-products">
+    <p class="sub">Paste product URLs (one per line) or upload a .txt/.csv. Reads each page,
+    finds the principal product image, and pulls the SKU from the image filename.</p>
+
+    <textarea id="p-urls" placeholder="https://www.ridestore.com/fr/montec-roast-moufles-unisex-sand&#10;..."></textarea>
+    <div class="row">
+      <button class="go" id="p-go">Extract SKUs</button>
+      <input type="file" id="p-file" accept=".txt,.csv">
+      <span class="spinner" id="p-spin">Working&hellip;</span>
+      <span class="stat" id="p-stat"></span>
     </div>
-    <div class="panel">
-      <h2>Details</h2>
-      <div style="max-height:320px;overflow:auto"><table id="tbl"><tbody></tbody></table></div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>SKUs
+          <span style="float:right">
+            <button class="secondary" id="p-download">Download</button>
+            <button class="secondary" id="p-copy">Copy</button>
+          </span>
+        </h2>
+        <label class="dedupe"><input type="checkbox" id="p-dedupe" checked> Remove duplicate SKUs</label>
+        <textarea class="out" id="p-skus" readonly placeholder="SKUs appear here, one per line"></textarea>
+      </div>
+      <div class="panel">
+        <h2>Details</h2>
+        <div style="max-height:320px;overflow:auto"><table id="p-tbl"><tbody></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 2: OUTFIT STYLES ============ -->
+  <div class="view" id="view-outfits">
+    <p class="sub">For outfit pages whose product links 404. Give the outfit <em>category</em> page,
+    then paste the (broken) outfit URLs. The tool reads each outfit's image on the category page and
+    returns the <code>style-XXXXX</code> number. Composite "creator" images have no style number and
+    are flagged as special cases.</p>
+
+    <label class="field" for="o-cat">Outfit category page URL</label>
+    <input type="text" id="o-cat" placeholder="https://www.ridestore.de/outfits-herren">
+
+    <label class="field" for="o-urls">Outfit URLs (one per line - anchor text after the URL is ignored)</label>
+    <textarea id="o-urls" placeholder="https://www.ridestore.de/dope-akin-snowboard-outfit-herren-dusk-black&#9;Out of stock Dope Akin ...&#10;..."></textarea>
+    <div class="row">
+      <button class="go" id="o-go">Extract Styles</button>
+      <input type="file" id="o-file" accept=".txt,.csv">
+      <span class="spinner" id="o-spin">Working&hellip;</span>
+      <span class="stat" id="o-stat"></span>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Styles
+          <span style="float:right">
+            <button class="secondary" id="o-download">Download</button>
+            <button class="secondary" id="o-copy">Copy</button>
+          </span>
+        </h2>
+        <label class="dedupe"><input type="checkbox" id="o-dedupe" checked> Remove duplicate styles</label>
+        <textarea class="out" id="o-styles" readonly placeholder="style-XXXXX numbers appear here, one per line"></textarea>
+      </div>
+      <div class="panel">
+        <h2>Details</h2>
+        <div style="max-height:320px;overflow:auto"><table id="o-tbl"><tbody></tbody></table></div>
+      </div>
     </div>
   </div>
 
 <script>
 const $ = s => document.querySelector(s);
-const BATCH = 15; // keep each request under Cloudflare's free-plan subrequest cap
-
-$('#file').addEventListener('change', e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    const urls = (r.result.match(/https?:\/\/[^\s,";]+/g) || []);
-    $('#urls').value = urls.join('\n');
-  };
-  r.readAsText(f);
-});
-
-$('#go').addEventListener('click', async () => {
-  const urls = $('#urls').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!urls.length) { alert('Paste some URLs first.'); return; }
-  $('#spin').style.display = 'inline';
-  $('#go').disabled = true;
-  $('#stat').textContent = '';
-  $('#tbl').querySelector('tbody').innerHTML = '';
-  $('#skus').value = '';
-
-  lastResults = [];
-  const all = lastResults;
-  try {
-    for (let i = 0; i < urls.length; i += BATCH) {
-      const chunk = urls.slice(i, i + BATCH);
-      $('#stat').textContent = 'Processing ' + Math.min(i + chunk.length, urls.length) + ' / ' + urls.length + '…';
-      const res = await fetch('/extract', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({urls: chunk})
-      });
-      if (!res.ok) throw new Error('Server returned ' + res.status);
-      const data = await res.json();
-      all.push(...data.results);
-      render(all);
-    }
-    updateStat();
-  } catch (err) {
-    alert('Error: ' + err);
-    $('#stat').textContent = '';
-  } finally {
-    $('#spin').style.display = 'none';
-    $('#go').disabled = false;
-  }
-});
-
-let lastResults = [];
-
-function skuList(results) {
-  let skus = results.filter(r => r.sku).map(r => r.sku);
-  if ($('#dedupe').checked) skus = [...new Set(skus)];
-  return skus;
-}
-
-function updateStat() {
-  const found = lastResults.filter(r => r.sku).length;
-  const shown = skuList(lastResults).length;
-  const dupeNote = ($('#dedupe').checked && shown < found) ? ' (' + (found - shown) + ' duplicates removed)' : '';
-  $('#stat').textContent = found + ' / ' + lastResults.length + ' SKUs found' + dupeNote;
-}
-
-function render(results) {
-  $('#skus').value = skuList(results).join('\n');
-  const tb = $('#tbl').querySelector('tbody');
-  tb.innerHTML = '';
-  for (const r of results) {
-    const tr = document.createElement('tr');
-    const note = r.note ? '<span class="bad">' + escapeHtml(r.note) + '</span>'
-                        : '<span class="ok">ok</span>';
-    tr.innerHTML =
-      '<td class="sku">' + (r.sku || '—') + '</td>' +
-      '<td><div class="muted">' + escapeHtml(r.url) + '</div>' +
-        (r.image ? '<div class="muted">' + escapeHtml(r.image) + '</div>' : '') +
-        '<div>' + note + '</div></td>';
-    tb.appendChild(tr);
-  }
-}
+const BATCH = 15; // keep each products request under Cloudflare's free-plan subrequest cap
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-$('#dedupe').addEventListener('change', () => {
-  $('#skus').value = skuList(lastResults).join('\n');
-  updateStat();
+// ---------- tab switching ----------
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('#view-' + t.dataset.view).classList.add('active');
+}));
+
+// ===================================================================
+// TAB 1 - Product SKUs
+// ===================================================================
+let pResults = [];
+
+$('#p-file').addEventListener('change', e => loadFile(e, '#p-urls'));
+
+$('#p-go').addEventListener('click', async () => {
+  const urls = lines('#p-urls').map(l => (l.match(/https?:\/\/\S+/) || [l])[0]);
+  if (!urls.length) { alert('Paste some product URLs first.'); return; }
+  $('#p-spin').style.display = 'inline';
+  $('#p-go').disabled = true;
+  $('#p-tbl').querySelector('tbody').innerHTML = '';
+  $('#p-skus').value = '';
+  pResults = [];
+  try {
+    for (let i = 0; i < urls.length; i += BATCH) {
+      const chunk = urls.slice(i, i + BATCH);
+      $('#p-stat').textContent = 'Processing ' + Math.min(i + chunk.length, urls.length) + ' / ' + urls.length + '…';
+      const res = await fetch('/extract', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({urls: chunk})
+      });
+      if (!res.ok) throw new Error('Server returned ' + res.status);
+      const data = await res.json();
+      pResults.push(...data.results);
+      renderProducts();
+    }
+    pStat();
+  } catch (err) {
+    alert('Error: ' + err); $('#p-stat').textContent = '';
+  } finally {
+    $('#p-spin').style.display = 'none'; $('#p-go').disabled = false;
+  }
 });
 
-$('#copy').addEventListener('click', () => {
-  $('#skus').select();
-  document.execCommand('copy');
+function pSkuList() {
+  let skus = pResults.filter(r => r.sku).map(r => r.sku);
+  if ($('#p-dedupe').checked) skus = [...new Set(skus)];
+  return skus;
+}
+function pStat() {
+  const found = pResults.filter(r => r.sku).length;
+  const shown = pSkuList().length;
+  const dupe = ($('#p-dedupe').checked && shown < found) ? ' (' + (found - shown) + ' duplicates removed)' : '';
+  $('#p-stat').textContent = found + ' / ' + pResults.length + ' SKUs found' + dupe;
+}
+function renderProducts() {
+  $('#p-skus').value = pSkuList().join('\n');
+  const tb = $('#p-tbl').querySelector('tbody'); tb.innerHTML = '';
+  for (const r of pResults) {
+    const note = r.note ? '<span class="bad">' + escapeHtml(r.note) + '</span>' : '<span class="ok">ok</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="key">' + (r.sku || '-') + '</td>' +
+      '<td><div class="muted">' + escapeHtml(r.url) + '</div>' +
+      (r.image ? '<div class="muted">' + escapeHtml(r.image) + '</div>' : '') +
+      '<div>' + note + '</div></td>';
+    tb.appendChild(tr);
+  }
+}
+$('#p-dedupe').addEventListener('change', () => { renderProducts(); pStat(); });
+$('#p-copy').addEventListener('click', () => copy('#p-skus'));
+$('#p-download').addEventListener('click', () => download('#p-skus', 'skus.txt'));
+
+// ===================================================================
+// TAB 2 - Outfit Styles
+// ===================================================================
+let oResults = [];
+
+$('#o-file').addEventListener('change', e => loadFile(e, '#o-urls'));
+
+$('#o-go').addEventListener('click', async () => {
+  const categoryUrl = $('#o-cat').value.trim();
+  if (!categoryUrl) { alert('Enter the outfit category page URL first.'); return; }
+  const urls = lines('#o-urls').map(l => (l.match(/https?:\/\/\S+/) || [l])[0]);
+  if (!urls.length) { alert('Paste some outfit URLs first.'); return; }
+  $('#o-spin').style.display = 'inline';
+  $('#o-go').disabled = true;
+  $('#o-stat').textContent = 'Reading category page…';
+  $('#o-tbl').querySelector('tbody').innerHTML = '';
+  $('#o-styles').value = '';
+  oResults = [];
+  try {
+    const res = await fetch('/extract-outfits', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({categoryUrl, urls})
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    oResults = data.results;
+    renderOutfits();
+    oStat();
+  } catch (err) {
+    alert('Error: ' + err); $('#o-stat').textContent = '';
+  } finally {
+    $('#o-spin').style.display = 'none'; $('#o-go').disabled = false;
+  }
 });
 
-$('#download').addEventListener('click', () => {
-  const blob = new Blob([$('#skus').value], {type: 'text/plain'});
+function oStyleList() {
+  let styles = oResults.filter(r => r.style).map(r => r.style);
+  if ($('#o-dedupe').checked) styles = [...new Set(styles)];
+  return styles;
+}
+function oStat() {
+  const found = oResults.filter(r => r.style).length;
+  const special = oResults.filter(r => r.status === 'special').length;
+  const missing = oResults.filter(r => !r.style && r.status !== 'special').length;
+  let msg = found + ' / ' + oResults.length + ' styles found';
+  if (special) msg += ' · ' + special + ' special case' + (special > 1 ? 's' : '');
+  if (missing) msg += ' · ' + missing + ' not found';
+  $('#o-stat').textContent = msg;
+}
+function statusLabel(r) {
+  if (r.status === 'ok') return '<span class="ok">ok</span>';
+  if (r.status === 'special') return '<span class="special">special case - ' + escapeHtml(r.note) + '</span>';
+  return '<span class="bad">' + escapeHtml(r.note || r.status) + '</span>';
+}
+function renderOutfits() {
+  $('#o-styles').value = oStyleList().join('\n');
+  const tb = $('#o-tbl').querySelector('tbody'); tb.innerHTML = '';
+  for (const r of oResults) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="key">' + (r.style || (r.status === 'special' ? 'SPECIAL' : '-')) + '</td>' +
+      '<td><div class="muted">' + escapeHtml(r.url) + '</div>' +
+      (r.image ? '<div class="muted">' + escapeHtml(r.image) + '</div>' : '') +
+      '<div>' + statusLabel(r) + '</div></td>';
+    tb.appendChild(tr);
+  }
+}
+$('#o-dedupe').addEventListener('change', () => { renderOutfits(); oStat(); });
+$('#o-copy').addEventListener('click', () => copy('#o-styles'));
+$('#o-download').addEventListener('click', () => download('#o-styles', 'styles.txt'));
+
+// ---------- shared helpers ----------
+function lines(sel) { return $(sel).value.split('\n').map(s => s.trim()).filter(Boolean); }
+function loadFile(e, target) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const urls = (r.result.match(/https?:\/\/[^\s,";]+/g) || []);
+    $(target).value = urls.join('\n');
+  };
+  r.readAsText(f);
+}
+function copy(sel) { $(sel).select(); document.execCommand('copy'); }
+function download(sel, name) {
+  const blob = new Blob([$(sel).value], {type: 'text/plain'});
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'skus.txt';
-  a.click();
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
   URL.revokeObjectURL(a.href);
-});
+}
 </script>
 </body>
 </html>

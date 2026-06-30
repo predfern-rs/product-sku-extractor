@@ -1,10 +1,11 @@
-# Product SKU Extractor
+# Product SKU & Style Extractor
 
-A small web app for pulling product SKUs out of Ridestore product pages in bulk.
+A small web app for pulling Ridestore product identifiers out of pages in bulk. It has
+two tabs.
 
-Paste a list of product URLs, and the app fetches each page, finds the principal
-product image, and derives the SKU from the image filename (the part before the
-first underscore). It also reads the SKU declared in the page's structured data and
+**Tab 1 - Product SKUs.** Paste a list of product URLs; the app fetches each page, finds
+the principal product image, and derives the SKU from the image filename (the part before
+the first underscore). It also reads the SKU declared in the page's structured data and
 cross-checks the two.
 
 ```
@@ -12,6 +13,21 @@ URL:   https://www.ridestore.com/fr/montec-roast-moufles-unisex-sand
 Image: https://www.ridestore.com/images/H3790_01_unaI73y.jpg?w=750
 SKU:   H3790
 ```
+
+**Tab 2 - Outfit Styles.** For outfit pages whose individual product links 404, the
+`style-XXXXX` identifier can't be read from the (dead) product page. Instead you give the
+outfit *category* page plus the broken outfit URLs, and the app reads each outfit's image
+on the category page and pulls the style number from the filename.
+
+```
+Category: https://www.ridestore.de/outfits-herren
+Image:    https://www.ridestore.de/images/style-30385_0_73G4dny.jpg?w=358
+Style:    style-30385
+```
+
+Some outfits use a dynamically composed "creator" image
+(`/images/creator?...&sku=H0860,H2285,...`) that has no style number. Those are flagged
+as **special cases** rather than guessed at.
 
 There are two ways to run it: deployed on **Cloudflare Pages** (no server to run),
 or **locally with Python**.
@@ -51,10 +67,12 @@ python app.py
 
 Then open **http://localhost:8765**. Press `Ctrl+C` to stop the server.
 
-The Python version ([`app.py`](app.py)) is self-contained — the UI is served by Python's
+The Python version ([`app.py`](app.py)) is self-contained - the UI is served by Python's
 built-in HTTP server, so `requests` is the only dependency.
 
 ## How to use it
+
+### Tab 1 - Product SKUs
 
 1. Paste product URLs (one per line) into the box, or upload a `.txt`/`.csv` file
    (any URLs in it are pulled out automatically).
@@ -65,6 +83,19 @@ built-in HTTP server, so `requests` is the only dependency.
 **Remove duplicate SKUs** (on by default) dedupes the SKU list, keeping the first
 occurrence of each, so variant or locale URLs that resolve to the same SKU only appear
 once. Untick it to keep one line per URL. The detail table always shows every URL.
+
+### Tab 2 - Outfit Styles
+
+1. Enter the outfit **category page** URL (e.g. `https://www.ridestore.de/outfits-herren`).
+2. Paste the outfit URLs, one per line. You can paste the URL followed by anchor text
+   (tab- or space-separated); only the URL is used, the rest is ignored.
+3. Click **Extract Styles**.
+4. The left panel lists the `style-XXXXX` numbers, with **Copy** and **Download**. The
+   detail table shows every URL, the image found, and the status: `ok`, `special case`
+   (creator/composite image), or a flag if the URL wasn't found on the category page.
+
+If a URL isn't on the category page you gave it, it's flagged rather than silently
+dropped, so double-check you're using the right category page (and locale) for those.
 
 ## How the SKU is found
 

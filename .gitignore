@@ -7,3 +7,6 @@ venv/
 # Local test artifacts
 page.html
 *.local.txt
+
+# Local fetched-page test artifacts
+_*.html

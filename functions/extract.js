@@ -1,4 +1,4 @@
-// Cloudflare Pages Function — POST /extract
+// Cloudflare Pages Function - POST /extract
 // Body: { "urls": ["https://...", ...] }
 // Returns: { "results": [{ url, sku, image, declared_sku, status, note }, ...] }
 //
