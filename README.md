@@ -1,7 +1,7 @@
 # Product SKU & Style Extractor
 
 A small web app for pulling Ridestore product identifiers out of pages in bulk. It has
-two tabs.
+three tabs.
 
 **Tab 1 - Product SKUs.** Paste a list of product URLs; the app fetches each page, finds
 the principal product image, and derives the SKU from the image filename (the part before
@@ -28,6 +28,19 @@ Style:    style-30385
 Some outfits use a dynamically composed "creator" image
 (`/images/creator?...&sku=H0860,H2285,...`) that has no style number. Those are flagged
 as **special cases** rather than guessed at.
+
+**Tab 3 - Image URLs.** Convert old image URLs to the new versions hosted on our own
+domain. Pick the brand (Dope Snow, Montec, Ridestore), paste the old URLs, and each is
+rebuilt under `https://www.<domain>/images/...`. Runs entirely in the browser - no page
+fetching. It detects the source pattern; new patterns are added as examples come in.
+
+```
+imgix:      https://ridestore.imgix.net/catalog/product/H0222_09_F4Nmugm.jpg
+  ->        https://www.dopesnow.com/images/H0222_09_F4Nmugm.jpg
+
+Cloudways:  https://wordpress-1269845-4582243.cloudwaysapps.com/wp-content/uploads/2026/07/h1186-06.jpg
+  ->        https://www.montecwear.com/images/wordpress-4582243/uploads/2026/07/h1186-06.jpg
+```
 
 There are two ways to run it: deployed on **Cloudflare Pages** (no server to run),
 or **locally with Python**.

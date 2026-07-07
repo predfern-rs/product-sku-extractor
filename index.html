@@ -20,6 +20,7 @@
   label.field { font-size: 13px; color: #444; display: block; margin: 0 0 4px; font-weight: 600; }
   input[type=text] { width: 100%; padding: 9px 10px; border: 1px solid #ccc; border-radius: 8px;
                      font-size: 13px; margin-bottom: 12px; }
+  select { padding: 9px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; }
   textarea { width: 100%; min-height: 200px; font-family: ui-monospace, Menlo, monospace;
              font-size: 13px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
   .row { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
@@ -51,6 +52,7 @@
   <div class="tabs">
     <button class="tab active" data-view="products">Product SKUs</button>
     <button class="tab" data-view="outfits">Outfit Styles</button>
+    <button class="tab" data-view="images">Image URLs</button>
   </div>
 
   <!-- ============ TAB 1: PRODUCT SKUs ============ -->
@@ -117,6 +119,50 @@
       <div class="panel">
         <h2>Details</h2>
         <div style="max-height:320px;overflow:auto"><table id="o-tbl"><tbody></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 3: IMAGE URLs ============ -->
+  <div class="view" id="view-images">
+    <p class="sub">Convert old image URLs to the new versions hosted on our own domain.
+    Pick the brand, paste the old URLs (one per line), and the tool rebuilds each under
+    <code>https://www.&lt;domain&gt;/images/&hellip;</code>. Handles both patterns:
+    imgix (<code>ridestore.imgix.net/catalog/product/FILE.jpg</code> &rarr; <code>/images/FILE.jpg</code>)
+    and Cloudways WordPress
+    (<code>wordpress-1269845-4582243.cloudwaysapps.com/wp-content/uploads/&hellip;</code>
+    &rarr; <code>/images/wordpress-4582243/uploads/&hellip;</code>).
+    Runs entirely in your browser - no page fetching.</p>
+
+    <label class="field" for="i-brand">Brand</label>
+    <select id="i-brand">
+      <option value="www.dopesnow.com">Dope Snow (dopesnow.com)</option>
+      <option value="www.montecwear.com">Montec (montecwear.com)</option>
+      <option value="www.ridestore.com">Ridestore (ridestore.com)</option>
+    </select>
+
+    <label class="field" for="i-urls" style="margin-top:12px">imgix image URLs (one per line)</label>
+    <textarea id="i-urls" placeholder="https://ridestore.imgix.net/catalog/product/H0222_09_F4Nmugm.jpg&#10;..."></textarea>
+    <div class="row">
+      <button class="go" id="i-go">Convert URLs</button>
+      <input type="file" id="i-file" accept=".txt,.csv">
+      <span class="stat" id="i-stat"></span>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>New URLs
+          <span style="float:right">
+            <button class="secondary" id="i-download">Download</button>
+            <button class="secondary" id="i-copy">Copy</button>
+          </span>
+        </h2>
+        <label class="dedupe"><input type="checkbox" id="i-dedupe" checked> Remove duplicate URLs</label>
+        <textarea class="out" id="i-new" readonly placeholder="Converted URLs appear here, one per line"></textarea>
+      </div>
+      <div class="panel">
+        <h2>Details</h2>
+        <div style="max-height:320px;overflow:auto"><table id="i-tbl"><tbody></tbody></table></div>
       </div>
     </div>
   </div>
@@ -271,6 +317,81 @@ function renderOutfits() {
 $('#o-dedupe').addEventListener('change', () => { renderOutfits(); oStat(); });
 $('#o-copy').addEventListener('click', () => copy('#o-styles'));
 $('#o-download').addEventListener('click', () => download('#o-styles', 'styles.txt'));
+
+// ===================================================================
+// TAB 3 - Image URLs (imgix -> own domain)
+// ===================================================================
+let iResults = [];
+
+$('#i-file').addEventListener('change', e => loadFile(e, '#i-urls'));
+
+// Rebuild an old image URL as one hosted on https://www.<domain>/images/...
+// Detects which source pattern the URL matches. Drops any query string.
+// New patterns can be added as more examples come in.
+function convertImageUrl(raw, domain) {
+  const url = (raw.match(/https?:\/\/\S+/) || [raw])[0].trim();
+  let u;
+  try { u = new URL(url); }
+  catch { return {url: raw, note: 'not a valid URL'}; }
+  const base = 'https://' + domain + '/images/';
+  const file = u.pathname.split('/').filter(Boolean).pop();
+
+  // Pattern: Cloudways WordPress uploads
+  //   wordpress-<n>-<id>.cloudwaysapps.com/wp-content/uploads/...
+  //   -> /images/wordpress-<id>/uploads/...
+  const cw = u.hostname.match(/^wordpress-\d+-(\d+)\.cloudwaysapps\.com$/i);
+  if (cw) {
+    const rest = u.pathname.replace(/^\/+/, '').replace(/^wp-content\//, '');
+    return {url, file, out: base + 'wordpress-' + cw[1] + '/' + rest};
+  }
+
+  // Pattern: imgix (and default) - keep only the filename
+  //   ridestore.imgix.net/catalog/product/FILE.jpg -> /images/FILE.jpg
+  if (!file) return {url, note: 'no filename in URL'};
+  return {url, file, out: base + file};
+}
+
+$('#i-go').addEventListener('click', () => {
+  const domain = $('#i-brand').value;
+  const raws = lines('#i-urls');
+  if (!raws.length) { alert('Paste some imgix image URLs first.'); return; }
+  iResults = raws.map(r => convertImageUrl(r, domain));
+  renderImages();
+  iStat();
+});
+
+function iOutList() {
+  let outs = iResults.filter(r => r.out).map(r => r.out);
+  if ($('#i-dedupe').checked) outs = [...new Set(outs)];
+  return outs;
+}
+function iStat() {
+  const done = iResults.filter(r => r.out).length;
+  const shown = iOutList().length;
+  const bad = iResults.length - done;
+  let msg = done + ' / ' + iResults.length + ' converted';
+  if ($('#i-dedupe').checked && shown < done) msg += ' (' + (done - shown) + ' duplicates removed)';
+  if (bad) msg += ' · ' + bad + ' skipped';
+  $('#i-stat').textContent = msg;
+}
+function renderImages() {
+  $('#i-new').value = iOutList().join('\n');
+  const tb = $('#i-tbl').querySelector('tbody'); tb.innerHTML = '';
+  for (const r of iResults) {
+    const note = r.out ? '<span class="ok">ok</span>'
+                       : '<span class="bad">' + escapeHtml(r.note || 'skipped') + '</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="key">' + escapeHtml(r.file || '-') + '</td>' +
+      '<td><div class="muted">' + escapeHtml(r.url) + '</div>' +
+      (r.out ? '<div class="muted">' + escapeHtml(r.out) + '</div>' : '') +
+      '<div>' + note + '</div></td>';
+    tb.appendChild(tr);
+  }
+}
+$('#i-dedupe').addEventListener('change', () => { renderImages(); iStat(); });
+$('#i-brand').addEventListener('change', () => { if (iResults.length) { $('#i-go').click(); } });
+$('#i-copy').addEventListener('click', () => copy('#i-new'));
+$('#i-download').addEventListener('click', () => download('#i-new', 'image-urls.txt'));
 
 // ---------- shared helpers ----------
 function lines(sel) { return $(sel).value.split('\n').map(s => s.trim()).filter(Boolean); }
